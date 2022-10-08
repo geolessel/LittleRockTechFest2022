@@ -13,9 +13,10 @@ defmodule Lrtf.Application do
       # Start the PubSub system
       {Phoenix.PubSub, name: Lrtf.PubSub},
       # Start the Endpoint (http/https)
-      LrtfWeb.Endpoint
+      LrtfWeb.Endpoint,
       # Start a worker by calling: Lrtf.Worker.start_link(arg)
       # {Lrtf.Worker, arg}
+      Lrtf.FakeRepo
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
