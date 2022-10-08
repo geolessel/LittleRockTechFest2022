@@ -13,6 +13,11 @@ defmodule LrtfWeb.PageLive do
     {:noreply, assign(socket, :companies, companies)}
   end
 
+  def handle_event("submit_comment", %{"comments" => %{"text" => text}}, socket) do
+    Lrtf.insert_comment(text)
+    {:noreply, assign(socket, comments: Lrtf.list_comments())}
+  end
+
   def render(assigns) do
     ~H"""
     <div style="display: flex;">
