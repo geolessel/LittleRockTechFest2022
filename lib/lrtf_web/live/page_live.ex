@@ -6,6 +6,7 @@ defmodule LrtfWeb.PageLive do
 
     companies = Lrtf.list_companies()
     comments = Lrtf.list_comments()
+
     {:ok, assign(socket, comments: comments, companies: companies)}
   end
 
@@ -13,9 +14,14 @@ defmodule LrtfWeb.PageLive do
     {:noreply, assign(socket, :companies, companies)}
   end
 
+  def handle_info({:new_comment, comment}, socket) do
+    {:noreply, assign(socket, comments: [comment])}
+  end
+
   def handle_event("submit_comment", %{"comments" => %{"text" => text}}, socket) do
     Lrtf.insert_comment(text)
-    {:noreply, assign(socket, comments: Lrtf.list_comments())}
+
+    {:noreply, socket}
   end
 
   def render(assigns) do
