@@ -7,7 +7,8 @@ defmodule LrtfWeb.PageLive do
     companies = Lrtf.list_companies()
     comments = Lrtf.list_comments()
 
-    {:ok, assign(socket, comments: comments, companies: companies)}
+    {:ok, assign(socket, comments: comments, companies: companies),
+     temporary_assigns: [comments: []]}
   end
 
   def handle_info({:new_prices, companies}, socket) do
@@ -66,7 +67,7 @@ defmodule LrtfWeb.PageLive do
         <%= text_input(f, :text) %>
       </div>
 
-      <div id="comments-container">
+      <div id="comments-container" phx-update="prepend">
         <%= for comment <- @comments do %>
           <div class="comment" id={"comment_#{comment.id}"}><%= comment.text %></div>
         <% end %>
