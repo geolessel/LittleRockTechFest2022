@@ -75,4 +75,8 @@ defmodule LrtfWeb.PageLive do
     </div>
     """
   end
+
+  def terminate({:shutdown, :closed}, socket) do
+    Lrtf.unsubscribe(self())
+  end
 end
