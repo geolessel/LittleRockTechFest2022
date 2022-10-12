@@ -1,0 +1,296 @@
+* Litle Rock Tech Fest 2022
+These are notes I used during my presentation to Little Rock Tech Fest
+in October 2022. If you are interested, you can also use these notes
+to either follow along while watching a recording of my presentation
+or recreate the presentation yourself.
+
+** Getting started
+To start your Phoenix server:
+
+- Install dependencies with `mix deps.get`
+ - Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+
+Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+
+Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+
+*** Learn more
+
+- Official website: https://www.phoenixframework.org/
+- Guides: https://hexdocs.pm/phoenix/overview.html
+- Docs: https://hexdocs.pm/phoenix
+- Forum: https://elixirforum.com/c/phoenix-forum
+- Source: https://github.com/phoenixframework/phoenix
+
+** Talk plan
+*** Setup
+- Text size of 251
+- Light theme in Emacs
+- Light theme in iTerm2
+
+*** Step 1 - Traditional controller
+- Traditional controller
+- Traditional view
+- Refresh browser to get new information
+- Point out logs and response time'
+
+*** Step 3 - Make it go through a live route
+At this point, we have added the dependencies and have done the setup
+required, but we are still hitting our application through a regular
+route.
+
+We need to go through a live route.
+
+**** Change the router to use the =live= action
+[[file:./lib/trtf_web/router.ex][lib/trtf_web/router.ex]]
+
+#+begin_src diff
+- get "/", PageController, :index
++ live "/", PageLive
+#+end_src
+
+**** Add the =TrtfWeb.PageLive= module
+We don't care about the =assigns= param.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  defmodule TrtfWeb.PageLive do
+    use Phoenix.LiveView
+
+    def render(_assigns) do
+      companies = Trtf.list_companies()
+      TrtfWeb.PageView.render("index.html", companies: companies)
+    end
+  end
+#+end_src
+
+*** Rename page template to live template
+[[file:./lib/trtf_web/templates/page/index.html.leex][lib/trtf_web/templates/page/index.html.leex]]
+
+*** Step 4 - Add =mount/3= function
+We are currently getting the list of companies in the =render/1=
+function but that isn't the "live way". We should instead add that
+list of companies into our connection socket assigns. To do so, we
+need to add the =mount/3= function and move the retrieval into it.
+
+**** Add =render/3= function
+Note that we now care about the =assigns= param as it has our
+=companies= in it.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+defmodule TrtfWeb.PageLive do
+  use Phoenix.LiveView
+
+  def mount(_params, _session, socket) do
+    companies = Trtf.list_companies()
+    {:ok, assign(socket, companies: companies)}
+  end
+
+  def render(assigns) do
+    TrtfWeb.PageView.render("index.html", assigns)
+  end
+end
+#+end_src
+
+*** Step 5 - Subscribe to database/price updates
+I have set up a sort of pub/sub module to allow any process to
+subscribe to published updates (specifically company price changes).
+
+We need to subscribe to them.
+
+After adding the subscription, show that the browser is
+auto-refreshing! This is actually not what we want -- the connected
+socket is crashing but it is auto-recovering.
+
+SHOW THE LOGS. SHOW THE BROWSER.
+
+*** Make the call if connected to the socket
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Trtf.subscribe(self())
+
+    companies = Trtf.list_companies()
+    {:ok, assign(socket, :companies, companies)}
+  end
+#+end_src
+
+*** Step 6 - Handle the =:new_prices= message — WE'RE LIVE!
+The browser crashing and rebooting is obviously not going to be the
+best solution for real-time updates in our app. We need to handle the
+message that is sent.
+
+Show the message in the logs!
+
+**** Check the logs for the unhandled message
+It will tell us what was called and not handled
+
+#+begin_src
+(UndefinedFunctionError) function TrtfWeb.PageLive.handle_info/2 is undefined or private
+(trtf 0.1.0) TrtfWeb.PageLive.handle_info({:new_prices, [%Trtf.Company{name:
+#+end_src
+
+**** Add the handler
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def handle_info({:new_prices, companies}, socket) do
+    {:noreply, assign(socket, :companies, companies)}
+  end
+#+end_src
+
+*** Step 7 - Add live chat?
+Can we go even further with the push updates? A lot of demonstrations
+of push updates go into live chatting capabilities, but we've focused
+on stock prices. But we can do both!
+
+**** Add the comment form to the html template
+This will fail a reload because =@comments= is not in the assigns.
+
+Point out =phx_submit=.
+
+[[file:./lib/trtf_web/templates/page/index.html.leex][lib/trtf_web/templates/page/index.html.leex]]
+
+#+begin_src html
+  <div class="comments">
+    <%= f = form_for(:comments, "#", [phx_submit: :submit_comment]) %>
+
+    <div class="comment-form">
+      <h3>Comments</h3>
+      <%= text_input(f, :text) %>
+    </div>
+
+    <div id="comments-container">
+      <%= for comment <- @comments do %>
+        <div class="comment" id="<%= comment.id %>"><%= comment.text %></div>
+      <% end %>
+    </div>
+  </div>
+#+end_src
+
+**** Add =comments= to the list of assigns
+Show the crash log when we try to submit.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Trtf.subscribe(self())
+
+    companies = Trtf.list_companies()
+    comments = Trtf.list_comments()
+
+    {:ok, assign(socket, companies: companies, comments: comments)}
+  end
+#+end_src
+
+**** Prevent process crashes by handling the event
+We need to handle the event that =phx_submit= sends to us with the
+form contents in it.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def handle_event("submit_comment", %{"comments" => %{"text" => text}}, socket) do
+    Trtf.insert_comment(text)
+    {:noreply, assign(socket, comments: Trtf.list_comments())}
+  end
+#+end_src
+
+*** Step 8 - Demonstrate support for multiple simultaneous connections
+This isn't just for a single connection to your site — it's for all
+the connections to your site!
+
+Open multiple browser windows and show how the prices are in sync.
+
+Show how comments submitted previously are already there.
+
+**** Don't reload all comments on a submit
+We don't want to have to load every comment from the database every
+time someone makes a comment. We already have all the comments in the
+browser -- we really only need the latest one.
+
+Send away the comment and forget it.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def handle_event("submit_comment", %{"comments" => %{"text" => text}}, socket) do
+    Trtf.insert_comment(text)
+    {:noreply, socket}
+  end
+#+end_src
+
+**** Make =comments= a temporary assign
+We don't need to hold all this in memory.
+
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src diff
+-    {:ok, assign(socket, companies: companies, comments: comments)}
++    {:ok, assign(socket, companies: companies, comments: comments),
++     temporary_assigns: [comments: []]}
+#+end_src
+
+**** Modify our pubsub to publish messages on new comment
+We want to notify every subscriber that a new comment has been posted.
+
+After we do this and send a message, the browser session crashes again.
+
+[[file:./lib/trtf/fake_repo.ex][lib/trtf/fake_repo.ex]]
+
+#+begin_src elixir
+  def handle_cast({:insert_comment, comment}, state) do
+    comment = %{comment | id: state.comment_counter + 1}
+
+    state =
+      state
+      |> Map.update(:comments, [], &[comment | &1])
+      |> Map.update(:comment_counter, 0, &(&1 + 1))
+
+    state.subscribers
+    |> Enum.each(fn subscriber ->
+      send(subscriber, {:new_comment, comment})
+    end)
+
+    {:noreply, state}
+  end
+#+end_src
+
+**** Handle the new message
+[[file:./lib/trtf_web/live/page_live.ex][lib/trtf_web/live/page_live.ex]]
+
+#+begin_src elixir
+  def handle_info({:new_comment, comment}, socket) do
+    {:noreply, assign(socket, comments: [comment])}
+  end
+#+end_src
+
+**** Prepend the comment to the list we already have in the UI
+Now we have yet another problem: the entire comments list is now
+replaced with the single new comment.
+
+Solution: we need to tell Phoenix to prepend the list.
+
+#+begin_src html
+  <div id="comments-container" phx-update="prepend">
+#+end_src
+
+*** Step 9 - Increase timer frequency and show extent of updates
+Let's make it quicker!
+
+**** Increase frequency
+[[file:./lib/trtf/fake_repo.ex][/lib/trtf/fake_repo.ex]]
+
+- 2_000
+- 1_000
+-   500
+-   200
+-    16
+
+**** We've been updating a lot more than these few rows
+Scroll down
